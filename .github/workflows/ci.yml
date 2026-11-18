@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker build -t eods:ci .
       - name: scan image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.33.1
         with:
           image-ref: eods:ci
           severity: CRITICAL,HIGH
