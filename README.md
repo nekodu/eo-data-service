@@ -133,6 +133,13 @@ PASS direct pod-to-API blocked by NetworkPolicy
   silently stopped being enforced. The smoke test caught it; restarting kindnet fixed it.
   A policy that isn't tested isn't a control.
 - `/v1/nowcast` returned 500 for a window outside the cube; now 422, with a test.
+- The image had the ecCodes Python bindings but not the C library, so `import eccodes`
+  failed and the ingest job would have crashed on its first real slot. Unit tests never
+  touch a real GRIB file, so they couldn't see it. `eccodeslib` is now a dependency and the
+  image build fails if `import eccodes` does.
+- Trivy flagged five HIGH findings that came from the copies of urllib3 and msgpack that pip
+  bundles in the base image, not from the service's own dependencies. pip is now removed
+  from the runtime image.
 
 ## Not done yet
 

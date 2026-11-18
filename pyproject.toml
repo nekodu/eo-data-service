@@ -23,6 +23,8 @@ dependencies = [
 ingest = [
     "eumdac>=3.0,<4",
     "eccodes>=2.38",
+    # the C library itself; without it `import eccodes` fails at runtime
+    "eccodeslib>=2.39",
 ]
 torch = [
     "torch>=2.4,<2.10",
@@ -36,6 +38,10 @@ dev = [
     "pytest>=8.3",
     "ruff>=0.7",
 ]
+
+[tool.uv]
+# floors for transitive packages that Trivy flagged in the image
+constraint-dependencies = ["urllib3>=2.8.0", "msgpack>=1.2.3", "setuptools>=78.1.1"]
 
 # CPU wheels are a tenth of the CUDA ones and enough for a model this size
 [tool.uv.sources]
