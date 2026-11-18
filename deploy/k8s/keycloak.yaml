@@ -1,0 +1,60 @@
+# dev-mode Keycloak: fine for a lab, not for production (no TLS, H2 database)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: eods
+  labels: {app: keycloak}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: keycloak}
+  template:
+    metadata:
+      labels: {app: keycloak}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.4.2
+          args: ["start-dev", "--import-realm", "--health-enabled=true"]
+          env:
+            # fixed issuer, so tokens fetched through the gateway validate inside the cluster
+            - {name: KC_HOSTNAME, value: "http://keycloak.eods.svc.cluster.local:8080"}
+            - {name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC, value: "false"}
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom: {secretKeyRef: {name: keycloak-admin, key: username}}
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: keycloak-admin, key: password}}
+          ports:
+            - {name: http, containerPort: 8080}
+            - {name: mgmt, containerPort: 9000}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {memory: 1Gi}
+          readinessProbe:
+            httpGet: {path: /health/ready, port: mgmt}
+            initialDelaySeconds: 20
+            periodSeconds: 5
+          volumeMounts:
+            - {name: realm, mountPath: /opt/keycloak/data/import, readOnly: true}
+      volumes:
+        - name: realm
+          secret: {secretName: keycloak-realm}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: eods
+spec:
+  selector: {app: keycloak}
+  ports:
+    - {name: http, port: 8080, targetPort: http}

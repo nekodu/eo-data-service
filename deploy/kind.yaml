@@ -1,0 +1,9 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: eods
+nodes:
+  - role: control-plane
+    extraMounts:
+      # local data dir becomes the cube volume, so the cube survives cluster rebuilds
+      - hostPath: ${EODS_DATA_DIR}
+        containerPath: /eods-data

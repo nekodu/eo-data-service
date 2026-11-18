@@ -1,0 +1,71 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.0"
+      - run: uv sync --extra ingest
+      - run: uv run ruff check src tests
+      - run: uv run ruff format --check src tests
+      - run: uv run pytest -q
+
+  image:
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t eods:ci .
+      - name: scan image
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: eods:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+  manifests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: validate Kubernetes manifests
+        run: |
+          curl -fsSL -o kc.tgz https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz
+          tar xzf kc.tgz kubeconform
+          kubectl kustomize deploy/k8s > rendered.yaml
+          ./kubeconform -strict -summary -ignore-missing-schemas \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            rendered.yaml deploy/monitoring/eods-monitoring.yaml
+
+  e2e:
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.0"
+      - uses: helm/kind-action@v1
+        with:
+          install_only: true
+      - name: synthetic cube and model on the node mount
+        run: |
+          mkdir -p "$HOME/eods-data/models"
+          uv sync
+          uv run eods synth --out "$HOME/eods-data/cube.zarr" --steps 48
+          uv run eods train --cube "$HOME/eods-data/cube.zarr" --model "$HOME/eods-data/models/nowcast.joblib"
+          chmod -R a+rX "$HOME/eods-data"
+      - run: KPS_SKIP=1 bash scripts/up.sh
+      - run: bash scripts/smoke.sh

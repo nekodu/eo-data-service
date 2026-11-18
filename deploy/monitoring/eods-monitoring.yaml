@@ -1,0 +1,41 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: eods-api
+  namespace: eods
+spec:
+  selector:
+    matchLabels: {app: eods-api}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: eods-api
+  namespace: eods
+spec:
+  groups:
+    - name: eods
+      rules:
+        - alert: EodsCubeStale
+          # the ingest CronJob runs every 30 min; real slots arrive every 15
+          expr: time() - max(eods_cube_latest_timestamp_seconds) > 3 * 3600
+          for: 10m
+          labels: {severity: warning}
+          annotations:
+            summary: newest cloud-mask slot in the cube is older than 3 hours
+        - alert: EodsAuthFailureSpike
+          expr: sum(rate(eods_auth_failures_total[5m])) > 1
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: more than one rejected token per second for 5 minutes
+        - alert: EodsHighLatency
+          expr: histogram_quantile(0.95, sum by (le) (rate(eods_http_request_duration_seconds_bucket{route!~"/metrics|/healthz|/readyz"}[5m]))) > 1
+          for: 10m
+          labels: {severity: warning}
+          annotations:
+            summary: p95 API latency above 1 s

@@ -1,0 +1,27 @@
+# single-node lab: the cube lives on the kind node's /eods-data mount
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: eods-data
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: eods-local
+  hostPath:
+    path: /eods-data
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: eods-data
+  namespace: eods
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: eods-local
+  volumeName: eods-data
+  resources:
+    requests:
+      storage: 20Gi

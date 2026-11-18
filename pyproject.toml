@@ -1,0 +1,63 @@
+[project]
+name = "eods"
+version = "0.1.0"
+description = "Small Earth observation data service: EUMETSAT cloud masks in a Zarr cube, served through an OIDC-protected API on Kubernetes, with a cloud nowcasting baseline"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "MIT"
+dependencies = [
+    "numpy>=2.0",
+    "xarray>=2024.10",
+    "zarr>=3.0,<4",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic-settings>=2.6",
+    "pyjwt[crypto]>=2.9",
+    "httpx>=0.27",
+    "prometheus-client>=0.21",
+    "scikit-learn>=1.5",
+    "joblib>=1.4",
+]
+
+[project.optional-dependencies]
+ingest = [
+    "eumdac>=3.0,<4",
+    "eccodes>=2.38",
+]
+torch = [
+    "torch>=2.4",
+]
+
+[project.scripts]
+eods = "eods.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/eods"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "eods.auth.require_scope"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore:Consolidated metadata:UserWarning"]

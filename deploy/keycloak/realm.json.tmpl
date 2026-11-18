@@ -1,0 +1,59 @@
+{
+  "realm": "eods",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "clientScopes": [
+    {
+      "name": "cube:read",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "nowcast:run",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "eods-audience",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "false", "display.on.consent.screen": "false"},
+      "protocolMappers": [
+        {
+          "name": "aud-eods-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {"included.custom.audience": "eods-api", "access.token.claim": "true", "id.token.claim": "false"}
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "eods-reader",
+      "description": "machine client that may read the cube",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${READER_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["cube:read", "eods-audience"],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "eods-forecaster",
+      "description": "machine client that may read the cube and run nowcasts",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "${FORECASTER_SECRET}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false,
+      "defaultClientScopes": ["cube:read", "nowcast:run", "eods-audience"],
+      "optionalClientScopes": []
+    }
+  ]
+}

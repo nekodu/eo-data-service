@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eods-api
+  namespace: eods
+data:
+  EODS_CUBE_PATH: /data/cube.zarr
+  EODS_MODEL_PATH: /data/models/nowcast.joblib
+  EODS_OIDC_ISSUER: http://keycloak.eods.svc.cluster.local:8080/realms/eods
+  EODS_OIDC_JWKS_URL: http://keycloak.eods.svc.cluster.local:8080/realms/eods/protocol/openid-connect/certs
+  EODS_OIDC_AUDIENCE: eods-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eods-api
+  namespace: eods
+  labels: {app: eods-api}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: eods-api}
+  template:
+    metadata:
+      labels: {app: eods-api}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: api
+          image: eods:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8000}
+          envFrom:
+            - configMapRef: {name: eods-api}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 15
+          volumeMounts:
+            - {name: data, mountPath: /data, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: eods-data, readOnly: true}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eods-api
+  namespace: eods
+  labels: {app: eods-api}
+spec:
+  selector: {app: eods-api}
+  ports:
+    - {name: http, port: 8000, targetPort: http}
