@@ -106,15 +106,20 @@ def score(y: np.ndarray, pred: np.ndarray, prob: np.ndarray | None = None) -> Sc
     return Scores(n=int(len(y)), accuracy=acc, f1_cloud=f1, csi=csi, brier=brier)
 
 
-def train(
-    cube: np.ndarray, times: np.ndarray, cfg: NowcastConfig, synthetic: bool, test_share=0.25
-):
-    targets = np.arange(cfg.history - 1, cube.shape[0] - cfg.horizon)
+def split_targets(n_time: int, cfg: NowcastConfig, test_share: float = 0.25):
+    """Indices t (last observed slot) for training and testing, split by time."""
+    targets = np.arange(cfg.history - 1, n_time - cfg.horizon)
     if len(targets) < 8:
         raise ValueError("not enough time steps for history + horizon + a test block")
     cut = int(len(targets) * (1 - test_share))
     # leave a gap of `horizon` frames so no test target is also a training input
-    train_t, test_t = targets[: cut - cfg.horizon], targets[cut:]
+    return targets[: cut - cfg.horizon], targets[cut:]
+
+
+def train(
+    cube: np.ndarray, times: np.ndarray, cfg: NowcastConfig, synthetic: bool, test_share=0.25
+):
+    train_t, test_t = split_targets(cube.shape[0], cfg, test_share)
     rng = np.random.default_rng(cfg.seed)
     X, y, _ = build_samples(cube, cfg, train_t, rng)
     clf = HistGradientBoostingClassifier(max_iter=200, learning_rate=0.1, random_state=cfg.seed)

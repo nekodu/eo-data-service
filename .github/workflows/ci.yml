@@ -16,7 +16,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.13.0"
-      - run: uv sync --extra ingest
+      - run: uv sync --extra ingest --extra torch
       - run: uv run ruff check src tests
       - run: uv run ruff format --check src tests
       - run: uv run pytest -q

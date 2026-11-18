@@ -31,7 +31,30 @@ def main(argv=None) -> None:
     t.add_argument("--history", type=int, default=4)
     t.add_argument("--horizon", type=int, default=4)
 
+    c = sub.add_parser("compare", help="persistence vs gradient boosting vs PyTorch CNN")
+    c.add_argument("--cube", type=Path, default=Path("data/cube.zarr"))
+    c.add_argument("--out", type=Path, default=Path("models/cnn.pt"))
+    c.add_argument("--steps", type=int, default=400)
+
     a = p.parse_args(argv)
+    if a.cmd == "compare":
+        from . import ml_torch
+        from .cube import open_cube
+
+        ds = open_cube(a.cube)
+        net, _, result = ml_torch.compare(
+            ds["cloud"].values,
+            ds.time.values,
+            synthetic=bool(ds.attrs.get("synthetic", 0)),
+            tcfg=ml_torch.TorchConfig(steps=a.steps),
+        )
+        ml_torch.save(net, result, a.out)
+        print(
+            f"test {result.test_period[0]} .. {result.test_period[1]}, {result.n_pixels} pixels,"
+            f" synthetic={result.synthetic}"
+        )
+        print(ml_torch.markdown(result))
+        return
     if a.cmd == "synth":
         from .cube import write_cube
         from .synth import synthetic_dataset

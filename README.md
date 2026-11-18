@@ -53,29 +53,44 @@ client ──HTTP──▶ Envoy Gateway ──▶ eods-api (FastAPI, 2 replicas
 
 ## Nowcasting baseline
 
-Question: will a pixel be cloudy 60 minutes (4 slots) from now? Features per pixel come
-from the last 4 slots only: its own history plus cloud cover and its trend in 5×5 and
-21×21 neighbourhoods. Model: `HistGradientBoostingClassifier`. Reference: persistence
-("the mask stays as it is"). Train/test is split by time with a gap of one horizon, never
-by pixel, because neighbouring pixels in one frame are near-copies.
+Question: will a pixel be cloudy 60 minutes (4 slots) from now? Three answers, scored on
+exactly the same test pixels:
 
-Synthetic cube (96 slots, blobs drifting with a fixed wind), test block = last 25 %:
+- **persistence**: the mask stays as it is. The reference any model has to beat.
+- **gradient boosting** (`HistGradientBoostingClassifier`, served by the API): per-pixel
+  features from the last 4 slots, its own history plus cloud cover and its trend in 5×5 and
+  21×21 neighbourhoods.
+- **CNN** (PyTorch, `eods compare`): a small fully convolutional net on the last 4 masks plus
+  the valid-data mask. Four dilated 3×3 convolutions (dilation 1, 2, 4, 8) give a receptive
+  field of about 31 pixels without pooling away resolution; trained on random 64×64 crops
+  with a masked BCE loss so no-data pixels don't count. Saved as a `state_dict` only, so
+  loading never unpickles arbitrary objects.
+
+Train/test is split by time with a gap of one horizon, never by pixel, because neighbouring
+pixels in one frame are near-copies.
+
+Synthetic cube (96 slots, blobs drifting with a fixed wind), test block = last 25 %,
+276,736 valid pixels:
 
 | | accuracy | F1 (cloud) | CSI | Brier |
 |---|---|---|---|---|
 | persistence | 0.891 | 0.722 | 0.565 | 0.109 |
-| model | 0.935 | 0.828 | 0.706 | 0.051 |
+| gradient boosting | 0.935 | 0.828 | 0.707 | 0.050 |
+| CNN | 0.961 | 0.899 | 0.817 | 0.032 |
 
-The synthetic clouds move with a constant wind, which is the easy case. Real clouds grow,
-decay and change direction, so the gap to persistence will be smaller.
+The synthetic clouds move with a constant wind, which is the easy case and exactly what a
+convolution can learn. Real clouds grow, decay and change direction, so all gaps to
+persistence will shrink, and the CNN's lead may not survive. That is the first thing to
+check once real slots are in.
 
 ## Run it
 
 Needs Docker, kind, kubectl, helm, uv (Linux or WSL2).
 
 ```bash
-uv sync --extra ingest
-uv run pytest -q                                   # 20 tests
+uv sync --extra ingest --extra torch
+uv run pytest -q                                   # 24 tests
+uv run eods compare --cube ~/eods-data/cube.zarr   # persistence vs boosting vs CNN
 
 mkdir -p ~/eods-data/models                        # synthetic data until real slots exist
 uv run eods synth --out ~/eods-data/cube.zarr --steps 96
@@ -124,7 +139,7 @@ PASS direct pod-to-API blocked by NetworkPolicy
 - Real cloud-mask slots in the cube and a model trained on them.
 - TLS everywhere, Keycloak on a real database, per-client rate limits (needs the
   gateway's global rate limiting with Redis).
-- PyTorch ConvLSTM-style model to compare with the gradient-boosting baseline.
+- Serving the CNN through the API (it only runs offline in `eods compare` so far).
 
 ## Licence
 

@@ -25,7 +25,7 @@ ingest = [
     "eccodes>=2.38",
 ]
 torch = [
-    "torch>=2.4",
+    "torch>=2.4,<2.10",
 ]
 
 [project.scripts]
@@ -36,6 +36,15 @@ dev = [
     "pytest>=8.3",
     "ruff>=0.7",
 ]
+
+# CPU wheels are a tenth of the CUDA ones and enough for a model this size
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [build-system]
 requires = ["hatchling"]
